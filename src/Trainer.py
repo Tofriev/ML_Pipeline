@@ -12,11 +12,12 @@ class Trainer:
         self.params = params
         self.X_train, self.X_test, self.y_train, self.y_test = dataset.get_prepared_data()
 
-        self.models = {
+        model_dict = {
             "LogReg": LogisticRegression(),
             "EBM": ExplainableBoostingClassifier(),
             "XGB": XGBClassifier()
         }
+        self.models = {model_name: model_dict[model_name] for model_name in params['models'] if model_name in model_dict}
         self.grid_params = self.params["hpo"]
         self.cv_folds = params["cv_folds"]
         self.results = []
@@ -34,7 +35,7 @@ class Trainer:
             print(f"Training {model_name}...")
             cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
             processed_hpo_grid = self.prepare_hpo(self.grid_params[model_name])
-            grid_search = GridSearchCV(model, processed_hpo_grid, cv=cv, scoring="roc_auc", n_jobs=-1)
+            grid_search = GridSearchCV(model, processed_hpo_grid[model_name], cv=cv, scoring="roc_auc", n_jobs=-1)
             grid_search.fit(X_train, y_train)
             self.hpo_results.append({
                 "model": model_name,
@@ -48,6 +49,7 @@ class Trainer:
         accuracy = accuracy_score(y_test, predictions)
         roc_auc = roc_auc_score(y_test, predictions)
         return accuracy, roc_auc
+    
 
     def train(self):
         for model_name, model in self.models.items():

@@ -10,13 +10,13 @@
         "outer_bags": [8, 16],
         "inner_bags": [0, 4],
         "interactions": [0],
-        "random_state": [1991]
+        "random_state": [42]
     },
     "LogReg": {
         "C": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
         "penalty": ["l1", "l2"],
         "solver": ["lbfgs", "saga"],
         "class_weight": ["balanced", "None"],
-        "random_state": [1991]
+        "random_state": [42]
     }
 }

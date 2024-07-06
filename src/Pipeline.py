@@ -1,6 +1,7 @@
 from src.Dataset import Dataset
 from src.Explorer import Explorer
 from src.Trainer import Trainer
+import csv
 
 class Pipeline:
     def __init__(self, params, data):
@@ -19,12 +20,12 @@ class Pipeline:
     def train(self):
         self.trainer = Trainer(self.params["Trainer"], self.dataset)
         self.trainer.train()
-        results, results_hpo = self.trainer.get_results()
-        print(results)
-        print(results_hpo)
+        self.results, self.results_hpo = self.trainer.get_results()
+        print(self.results)
+        print(self.results_hpo)
     
     def run(self):
         self.preprocess()
-       # self.explore_data()
+        # self.explore_data()
         self.train()
         

@@ -19,16 +19,17 @@ parameters = {
         "target": "mortality",
         "numerical_features": 
         [
-            "Age", "Weight", "Height", "Bmi", "Temp", "RR", "HR", "GLU", "MBP", "Ph", "GCST", "PaO2", 
+            "Age", "Temp", "RR", "HR", "GLU", "MBP", "Ph", "GCST", "PaO2", 
             "Kreatinin", "FiO2", "Kalium", "Natrium", "Leukocyten", "Thrombocyten", "Bilirubin", "HCO3", "Hb", "Quick", 
-            "ALAT", "ASAT", "PaCO2", "Albumin", "AnionGAP"
+            "PaCO2", "Albumin", "AnionGAP"
         ],
         "categorical_features":
         [
-            "Eth", "Sex"
+            "Sex"
         ],
         
-        "imputation": "mean"
+        "imputation": "knn",
+        "sampling": "smote"
         }, 
     "Trainer": {
         "models": ["LogReg", "EBM", "XGB"],
