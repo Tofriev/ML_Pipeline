@@ -19,10 +19,12 @@ class Pipeline:
     def train(self):
         self.trainer = Trainer(self.params["Trainer"], self.dataset)
         self.trainer.train()
-        results = self.trainer.get_results()
+        results, results_hpo = self.trainer.get_results()
         print(results)
+        print(results_hpo)
     
     def run(self):
         self.preprocess()
        # self.explore_data()
         self.train()
+        

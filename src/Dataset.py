@@ -20,27 +20,29 @@ class Dataset():
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, train_size=self.params["train_size"], random_state=self.random_state)
     
     def drop_missing(self):
-        self.X_train.dropna(subset=["Sex"], inplace=True)
-        self.X_test.dropna(subset=["Sex"], inplace=True)
+        self.data.dropna(subset=["Sex"], inplace=True)
+        self.data.dropna(subset=["Eth"], inplace=True)
 
     def encode(self):
         self.X_train["Sex"] = self.X_train["Sex"].map({"F": 1, "M": 0})
         self.X_test["Sex"] = self.X_test["Sex"].map({"F": 1, "M": 0})
 
     def impute(self):
+        print(self.X_train.isnull().sum())
         self.imputation = self.imputer_dict[self.params["imputation"]]
 
         self.X_train[self.params["numerical_features"]] = self.imputation.fit_transform(self.X_train[self.params["numerical_features"]])        
         self.X_test[self.params["numerical_features"]] = self.imputation.transform(self.X_test[self.params["numerical_features"]])
-    
+        print(self.X_train.isnull().sum())
+
     def scale(self):    
         scaler = StandardScaler()
         self.X_train[self.params["numerical_features"]] = scaler.fit_transform(self.X_train[self.params["numerical_features"]])
         self.X_test[self.params["numerical_features"]] = scaler.transform(self.X_test[self.params["numerical_features"]])
 
     def prepare_data(self):
-        self.split()
         self.drop_missing()
+        self.split()
         self.encode()
         self.impute()
         self.scale()

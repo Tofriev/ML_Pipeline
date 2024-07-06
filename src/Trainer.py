@@ -20,6 +20,7 @@ class Trainer:
         self.grid_params = self.params["hpo"]
         self.cv_folds = params["cv_folds"]
         self.results = []
+        self.hpo_results = []
 
     def prepare_hpo(self, parameters):
         if "class_weight" in parameters:
@@ -35,6 +36,11 @@ class Trainer:
             processed_hpo_grid = self.prepare_hpo(self.grid_params[model_name])
             grid_search = GridSearchCV(model, processed_hpo_grid, cv=cv, scoring="roc_auc", n_jobs=-1)
             grid_search.fit(X_train, y_train)
+            self.hpo_results.append({
+                "model": model_name,
+                "best_params": grid_search.best_params_,
+                "best_score": grid_search.best_score_
+                })
             return grid_search.best_estimator_
         
     def evaluate_model(self, model, X_test, y_test):
@@ -49,7 +55,7 @@ class Trainer:
             if trained_model:
                 accuracy, roc_auc = self.evaluate_model(trained_model, self.X_test, self.y_test)
                 predictions = trained_model.predict(self.X_test)
-                recall = recall_score(self.self.y_test, predictions)
+                recall = recall_score(self.y_test, predictions)
                 precision = precision_score(self.y_test, predictions)
                 self.results.append({
                     "model": model_name,
@@ -60,5 +66,5 @@ class Trainer:
                 })
 
     def get_results(self):
-        return self.results
+        return self.results, self.hpo_results
 
