@@ -20,12 +20,12 @@ parameters = {
         "numerical_features": 
         [
             "Age", "Temp", "RR", "HR", "GLU", "MBP", "Ph", "GCST", "PaO2", 
-            "Kreatinin", "FiO2", "Kalium", "Natrium", "Leukocyten", "Thrombocyten", "Bilirubin", "HCO3", "Hb", "Quick", 
+            "Kreatinin", "FiO2", "Kalium", "Natrium", "Leukocyten", "Thrombocyten", "Bilirubin", "HCO3", "Hb", "Quick",
             "PaCO2", "Albumin", "AnionGAP"
         ],
         "categorical_features":
         [
-            "Sex"
+            "Eth", "gender"
         ],
         
         "imputation": "knn",
@@ -39,7 +39,7 @@ parameters = {
 }
 
 # load data
-with open("../data/mimic4_mean_100_extended_filtered.csv") as file: 
+with open("../data/mimic4_total_new.csv") as file: 
     data = pd.read_csv(file)
 
 pipe = Pipeline(parameters, data)

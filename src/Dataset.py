@@ -3,7 +3,7 @@ from sklearn.impute import SimpleImputer, KNNImputer
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
 from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import NearMiss
+from imblearn.under_sampling import RandomUnderSampler
 
 
 
@@ -14,7 +14,7 @@ class Dataset():
         self.random_state = random_state
         self.imputer_dict = {
             "mean": SimpleImputer(strategy="mean"),
-            "knn": KNNImputer(n_neighbors=10),
+            "knn": KNNImputer(n_neighbors=5),
             }
         self.data_prepared = False 
 
@@ -32,25 +32,32 @@ class Dataset():
         
         missing_threshold = len(self.data) * 0.5
         columns_to_drop = []
+        
         for column in self.data.columns:
             if self.data[column].isnull().sum() > missing_threshold:
                 columns_to_drop.append(column)
         self.data.drop(columns_to_drop, axis=1, inplace=True)
-
-        self.data.dropna(subset=["Sex"], inplace=True)
-        #self.data.dropna(subset=["Eth"], inplace=True)
+        print(columns_to_drop)
+        self.data.dropna(subset=["gender"], inplace=True)
+        self.data.dropna(subset=["Eth"], inplace=True)
+        self.params["numerical_features"] = [feature for feature in self.params["numerical_features"] if feature not in columns_to_drop]
 
     def encode(self):
-        self.X_train["Sex"] = self.X_train["Sex"].map({"F": 1, "M": 0})
-        self.X_test["Sex"] = self.X_test["Sex"].map({"F": 1, "M": 0})
+        self.X_train["gender"] = self.X_train["gender"].map({"F": 1, "M": 0}).astype(float)
+        self.X_test["gender"] = self.X_test["gender"].map({"F": 1, "M": 0}).astype(float)
+
+        self.X_train = pd.get_dummies(self.X_train, columns=["Eth"], drop_first=True, dtype=float)
+        self.X_test = pd.get_dummies(self.X_test, columns=["Eth"], drop_first=True, dtype=float)
 
     def impute(self):
+        print("stating imputation...")
         print(self.X_train.isnull().sum())
         self.imputation = self.imputer_dict[self.params["imputation"]]
 
         self.X_train[self.params["numerical_features"]] = self.imputation.fit_transform(self.X_train[self.params["numerical_features"]])        
         self.X_test[self.params["numerical_features"]] = self.imputation.transform(self.X_test[self.params["numerical_features"]])
         print(self.X_train.isnull().sum())
+        print("imputation done")
 
     def scale(self):    
         scaler = StandardScaler()
@@ -58,28 +65,27 @@ class Dataset():
         self.X_test[self.params["numerical_features"]] = scaler.transform(self.X_test[self.params["numerical_features"]])
 
     def sampling(self):
-        if self.params["sampling"] == "smote":
-            self.apply_smote()
-        elif self.params["sampling"] == "nearmiss":
-            self.apply_near_miss()
+        over = SMOTE(sampling_strategy=0.1, random_state=self.random_state)
+        under = RandomUnderSampler(sampling_strategy=0.5, random_state=self.random_state)
 
-    def apply_smote(self):
-        smote = SMOTE(random_state=self.random_state)
-        self.X_train, self.y_train = smote.fit_resample(self.X_train, self.y_train)
+        print("Before Over Sampling:", self.X_train.shape, self.y_train.shape)
+        X_over, y_over = over.fit_resample(self.X_train, self.y_train)
+        print("After Over Sampling:", X_over.shape, y_over.shape)
+    
+        X_resampled, y_resampled = under.fit_resample(X_over, y_over)
+        print("After Under Sampling:", X_resampled.shape, y_resampled.shape)
+    
+        self.X_train, self.y_train = X_resampled, y_resampled
 
-    def apply_near_miss(self):
-            near_miss = NearMiss()
-            self.X_train, self.y_train = near_miss.fit_resample(self.X_train, self.y_train)
-
+    
     def prepare_data(self):
         self.drop()
         self.split()
-        self.encode()
+        self.encode()   
         self.impute()
         self.scale()
-        #self.sampling()
+        self.sampling()
         self.data_prepared = True
-        print(self.X_train.shape, self.X_test.shape, self.y_train.shape, self.y_test.shape)
         print(self.X_train.head())
 
     def get_prepared_data(self):

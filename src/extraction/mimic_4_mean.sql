@@ -600,7 +600,7 @@ SELECT
     , sbp.sbp_mean AS "SBP"
     , dbp.dbp_mean AS "DBP"
     , mbp.mbp_mean AS "MBP"
-    , ph.ph_mean AS "h"
+    , ph.ph_mean AS "Ph"
     , gcs_e.mean_eyes + gcs_v.mean_verbal + gcs_m.mean_motor AS "GCST"
     , pao2.pao2_mean AS "PaO2"
     , creatinine_serum.creatinine_serum_mean AS "Kreatinin"

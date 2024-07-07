@@ -35,7 +35,7 @@ class Trainer:
             print(f"Training {model_name}...")
             cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
             processed_hpo_grid = self.prepare_hpo(self.grid_params[model_name])
-            grid_search = GridSearchCV(model, processed_hpo_grid[model_name], cv=cv, scoring="roc_auc", n_jobs=-1)
+            grid_search = GridSearchCV(model, processed_hpo_grid, cv=cv, scoring="roc_auc", n_jobs=-1)
             grid_search.fit(X_train, y_train)
             self.hpo_results.append({
                 "model": model_name,
