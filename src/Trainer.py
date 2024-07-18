@@ -1,6 +1,6 @@
 import json
 import numpy as np
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split, ParameterGrid
+from sklearn.model_selection import StratifiedKFold, ParameterGrid, train_test_split
 from sklearn.metrics import accuracy_score, roc_auc_score, recall_score, precision_score
 from sklearn.linear_model import LogisticRegression
 from interpret.glassbox import ExplainableBoostingClassifier
@@ -8,12 +8,13 @@ from xgboost import XGBClassifier
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 from sklearn.base import clone
-
+from sklearn.exceptions import NotFittedError
 
 class Trainer:
     def __init__(self, params, dataset):
         self.params = params
-        self.X_train, self.X_test, self.y_train, self.y_test = dataset.get_prepared_data()
+        self.X_train, self.y_train = dataset.get_prepared_data()[0], dataset.get_prepared_data()[2]
+        self.X_test, self.y_test = dataset.get_prepared_data()[1], dataset.get_prepared_data()[3]
 
         model_dict = {
             "LogReg": LogisticRegression(),
@@ -30,6 +31,10 @@ class Trainer:
         if "class_weight" in parameters:
             parameters["class_weight"] = [
                 None if i == "None" else i for i in parameters["class_weight"]
+            ]
+        elif "max_depth" in parameters:
+            parameters["max_depth"] = [
+                None if i == -1 else i for i in parameters["max_depth"]
             ]
         return parameters
 
@@ -65,16 +70,28 @@ class Trainer:
             mean_test_score, std_test_score = None, None
 
             for params in ParameterGrid(processed_hpo_grid):
-                model.set_params(**params)
-                mean_score, std_score = self.custom_cv(X_train, y_train, model, self.cv_folds, 
-                                                  smote_params={'sampling_strategy': 0.1, 'random_state': 42},
-                                                  under_params={'sampling_strategy': 0.5, 'random_state': 42})
+                try:
+                    model.set_params(**params)
+                    mean_score, std_score = self.custom_cv(X_train, y_train, model, self.cv_folds, 
+                                                          smote_params={'sampling_strategy': 0.1, 'random_state': 42},
+                                                          under_params={'sampling_strategy': 0.5, 'random_state': 42})
 
-                if mean_score > best_score:
-                    best_score = mean_score
-                    best_model = clone(model)
-                    best_params = params
-                    mean_test_score, std_test_score = mean_score, std_score
+                    if mean_score > best_score:
+                        best_score = mean_score
+                        best_model = clone(model)
+                        best_params = params
+                        mean_test_score, std_test_score = mean_score, std_score
+                except (ValueError, NotFittedError) as e:
+                    print(f"Skip {params}, error: {e}")
+                    continue  
+                except Exception as e:
+                    print(f"unexpected error: {e}")
+                    continue
+
+            if best_model is None:
+                raise ValueError(f"no valid params for {model_name}")
+
+            best_model.fit(X_train, y_train)
 
             self.hpo_results.append({
                 "model": model_name,
@@ -86,12 +103,15 @@ class Trainer:
                 "roc_auc_mean": mean_test_score,
                 "roc_auc_std": std_test_score
             }
-       
 
         return best_model, cv_metrics
-        
+
     def evaluate_model(self, model, X_test, y_test):
-        predictions = model.predict(X_test)
+        try:
+            predictions = model.predict(X_test)
+        except NotFittedError:
+            raise ValueError(f"model {model} not fitted")
+
         accuracy = accuracy_score(y_test, predictions)
         roc_auc = roc_auc_score(y_test, predictions)
         recall = recall_score(y_test, predictions)
@@ -100,17 +120,23 @@ class Trainer:
 
     def train(self):
         for model_name, model in self.models.items():
-            trained_model, cv_metrics = self.train_model(model_name, model, self.X_train, self.y_train)
-            accuracy, roc_auc, recall, precision = self.evaluate_model(trained_model, self.X_test, self.y_test)
-            self.results.append({
-                "model": model_name,
-                "accuracy": accuracy,
-                "roc_auc": roc_auc,
-                "recall": recall,
-                "precision": precision,
-                "cv_metrics": cv_metrics
-            })
+            try:
+                trained_model, cv_metrics = self.train_model(model_name, model, self.X_train, self.y_train)
+                accuracy, roc_auc, recall, precision = self.evaluate_model(trained_model, self.X_test, self.y_test)
+                self.results.append({
+                    "model": model_name,
+                    "accuracy": accuracy,
+                    "roc_auc": roc_auc,
+                    "recall": recall,
+                    "precision": precision,
+                    "cv_metrics": cv_metrics
+                })
+            except ValueError as e:
+                print(f"Error training {model_name}: {e}")
+                continue
+            except Exception as e:
+                print(f"An unexpected error occurred during training of {model_name}: {e}")
+                continue
 
     def get_results(self):
         return self.results, self.hpo_results
-
