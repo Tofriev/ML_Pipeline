@@ -1,9 +1,10 @@
+#%%
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-csv_file_path = "../data/mimic4_total.csv"
+csv_file_path = "../data/mimic4_total_new.csv"
 
 numerical_vars = ["Age", "Temp", "RR", "HR", "GLU", "MBP", "Ph", "GCST", "PaO2", 
             "Kreatinin", "FiO2", "Kalium", "Natrium", "Leukocyten", "Thrombocyten", "Bilirubin", "HCO3", "Hb", "Quick", 

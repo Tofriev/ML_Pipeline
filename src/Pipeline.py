@@ -4,13 +4,13 @@ from src.Trainer import Trainer
 import csv
 
 class Pipeline:
-    def __init__(self, params, data):
+    def __init__(self, params, data, frac_ids=None):
         self.params = params
         self.data = data
         self.random_state = params["random_state"]
+        self.dataset = Dataset(self.params["Dataset"], self.data, self.random_state, frac_ids)
 
     def preprocess(self):
-        self.dataset = Dataset(self.params["Dataset"], self.data, self.random_state)
         self.dataset.prepare_data()
     
     def explore_data(self):
@@ -28,4 +28,15 @@ class Pipeline:
         self.preprocess()
         # self.explore_data()
         self.train()
+
+
+    def return_results(self, with_hpo=False):
+        if with_hpo:
+            return self.results, self.results_hpo
+        else:
+            return self.results
+    def return_frac_ids(self):
+        ids = self.dataset.make_fractional_ids()
+        print(len(ids))
+        return ids
         

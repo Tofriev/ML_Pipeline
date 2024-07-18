@@ -1,5 +1,4 @@
 # %%
-
 import sys
 import os
 import json
@@ -11,6 +10,8 @@ from src.Pipeline import Pipeline
 
 with open("../src/hpo.json") as file:
     hpo = json.load(file)
+
+
 # set parameters
 parameters = {
     "random_state": 42,
@@ -42,10 +43,24 @@ parameters = {
 with open("../data/mimic4_total_new.csv") as file: 
     data = pd.read_csv(file)
 
-pipe = Pipeline(parameters, data)
-pipe.run()
-results = pipe.return_results()
-print(results)
+# use part of data for testing
+#data = data.sample(frac=0.1, random_state=42)
+
+pipe_fracs = Pipeline(parameters, data)
+id_dict = pipe_fracs.return_frac_ids()
+print(len(id_dict)) 
+#%%
+results = {}
+for frac, frac_ids in id_dict.items():
+    pipe = Pipeline(parameters, data, frac_ids)
+    pipe.run()
+    results[frac] = pipe.return_results()
+
+   
+with open("results_fracs.json", "w") as file:
+    json.dump(results, file)
+
+
 
 
 
