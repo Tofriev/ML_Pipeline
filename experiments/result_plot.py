@@ -1,9 +1,10 @@
 #%%
 import pandas as pd
 import matplotlib.pyplot as plt
+import json
 
 with open('results.json') as file:
-    data = file.read()
+    data = json.load(file)
 
 df = pd.DataFrame(data).T
 
