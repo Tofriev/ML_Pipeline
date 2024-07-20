@@ -19,13 +19,13 @@ parameters = {
         "target": "mortality",
         "numerical_features": 
         [
-            "Age", "Temp", "RR", "HR", "GLU", "MBP", "Ph", "GCST", "PaO2", 
+            "Age", "Weight", "Height", "Temp", "RR", "HR", "GLU", "MBP", "Ph", "GCST", "PaO2", 
             "Kreatinin", "FiO2", "Kalium", "Natrium", "Leukocyten", "Thrombocyten", "Bilirubin", "HCO3", "Hb", "Quick",
-            "PaCO2", "Albumin", "AnionGAP"
+            "PaCO2", "ALAT", "ASAT", "Albumin", "AnionGAP", "Lactate", "Harnstoff"
         ],
         "categorical_features":
         [
-            "Eth", "gender"
+             "Eth", "gender"
         ],
         
         "imputation": "knn",
@@ -35,6 +35,7 @@ parameters = {
         "models": ["LogReg", "EBM", "XGB"], 
         "hpo": hpo,
         "cv_folds": 5,
+
     }
 }
 
@@ -44,8 +45,17 @@ with open("../data/mimic4_total_new.csv") as file:
 
 pipe = Pipeline(parameters, data)
 pipe.run()
-results = pipe.return_results()
+results, feature_importance = pipe.return_results()
 print(results)
+
+with open('results.json', 'w') as file:
+    json.dump(results, file)
+
+print(feature_importance)
+
+
+
+
 
 
 

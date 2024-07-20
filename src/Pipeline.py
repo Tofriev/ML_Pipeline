@@ -20,7 +20,9 @@ class Pipeline:
     def train(self):
         self.trainer = Trainer(self.params["Trainer"], self.dataset)
         self.trainer.train()
-        self.results, self.results_hpo = self.trainer.get_results()
+        self.results, self.results_hpo, self.feature_importances = self.trainer.get_results()
+        self.trainer.plot_feature_importances()
+        self.trainer.plot_ebm_feature_contributions()
         print(self.results)
         print(self.results_hpo)
     
@@ -34,7 +36,7 @@ class Pipeline:
         if with_hpo:
             return self.results, self.results_hpo
         else:
-            return self.results
+            return self.results, self.feature_importances
     def return_frac_ids(self):
         ids = self.dataset.make_fractional_ids()
         print(len(ids))

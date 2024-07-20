@@ -82,12 +82,14 @@ class Dataset():
 
     
     def prepare_data(self):
+        print(f"Initial N of Features: {len(self.data.columns)-5}, N of Samples: {len(self.data)}")
         self.drop()
         self.split()
         self.encode()   
         self.impute()
         self.scale()
         #self.sampling()  
+        print(f"After prepro N of Features: {len(self.data.columns)}, N of Samples: {len(self.data)}")
         self.data_prepared = True
         print(self.X_train.head())
 

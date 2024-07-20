@@ -7,6 +7,9 @@ from imblearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 import numpy as np
+import sys
+import shap
+import matplotlib.pyplot as plt
 
 class Trainer:
     def __init__(self, params, dataset):
@@ -21,8 +24,9 @@ class Trainer:
         self.models = {model_name: model_dict[model_name] for model_name in params['models'] if model_name in model_dict}
         self.grid_params = self.params["hpo"]
         self.cv_folds = params["cv_folds"]
-        self.results = []
+        self.results = {}
         self.hpo_results = []
+        self.feature_importances = {}
 
     def prepare_hpo(self, parameters, step_name):
         processed_params = {}
@@ -52,12 +56,38 @@ class Trainer:
             cv_results = cross_val_score(grid_search.best_estimator_, self.dataset.X_train, self.dataset.y_train, cv=cv, scoring="roc_auc")
             auroc_std = cv_results.std()
 
+            model_memory = sys.getsizeof(grid_search.best_estimator_)
+
             self.hpo_results.append({
                 "model": model_name,
                 "best_params": grid_search.best_params_,
                 "best_score": grid_search.best_score_,
             })
-            return grid_search.best_estimator_, auroc_std
+
+            if model_name == "XGB":
+                self.shap_importance(grid_search.best_estimator_['classifier'])
+            elif model_name == "EBM":
+                self.ebm_importance(grid_search.best_estimator_['classifier'])
+            elif model_name == "LogReg":
+                self.logreg_importance(grid_search.best_estimator_['classifier'])
+            
+
+            return grid_search.best_estimator_, auroc_std, model_memory
+
+    def shap_importance(self, model):
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(self.dataset.X_train)
+        shap_importance = np.abs(shap_values).mean(axis=0)
+        self.feature_importances["XGB"] = shap_importance
+
+    def ebm_importance(self, model):
+        self.ebm_global_explanation = model.explain_global()
+        ebm_importance = self.ebm_global_explanation.data()['scores']
+        self.feature_importances["EBM"] = ebm_importance
+
+    def logreg_importance(self, model):
+        logreg_importance = np.abs(model.coef_).flatten()
+        self.feature_importances["LogReg"] = logreg_importance
 
     def evaluate_model(self, model, X_test, y_test):
         predictions = model.predict(X_test)
@@ -69,17 +99,33 @@ class Trainer:
 
     def train(self):
         for model_name, model in self.models.items():
-            trained_model, auroc_std = self.train_model(model_name, model)
+            trained_model, auroc_std, model_memory = self.train_model(model_name, model)
             if trained_model:
                 accuracy, roc_auc, recall, precision = self.evaluate_model(trained_model, self.dataset.X_test, self.dataset.y_test)
-                self.results.append({
-                    "model": model_name,
-                    "accuracy": accuracy,
-                    "roc_auc": roc_auc,
-                    "recall": recall,
-                    "precision": precision,
-                    "auroc_std": auroc_std
-                })
+                self.results[model_name] = {
+                "accuracy": accuracy,
+                "roc_auc": roc_auc,
+                "recall": recall,
+                "precision": precision,
+                "auroc_std": auroc_std,
+                "model_memory": model_memory
+            }
+
+    def plot_feature_importances(self):
+        for model_name, importances in self.feature_importances.items():
+            importances = np.array(importances)
+            sorted_indices = np.argsort(importances)[::-1]  # sort
+            sorted_importances = importances[sorted_indices]
+            sorted_features = self.dataset.X_train.columns[sorted_indices]
+            
+            plt.figure(figsize=(10, 6))
+            plt.barh(range(len(sorted_importances)), sorted_importances, align='center')
+            plt.yticks(range(len(sorted_importances)), sorted_features)
+            plt.xlabel("Feature Importance")
+            plt.title(f"Feature Importance for {model_name}")
+            plt.gca().invert_yaxis()  
+            plt.show()
+
 
     def get_results(self):
-        return self.results, self.hpo_results
+        return self.results, self.hpo_results, self.feature_importances

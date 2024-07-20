@@ -42,7 +42,7 @@ for i, model in enumerate(models, 1):
     )
     plt.xlabel("Number of Data Samples")
     plt.ylabel("ROC AUC")
-    plt.title(f"ROC AUC vs Number of Data Samples for {model} with Standard Deviation")
+    plt.title(f"ROC AUC vs N of Data Samples for {model} ")
     plt.legend()
     plt.grid(True)
     plt.ylim(y_min, y_max)
