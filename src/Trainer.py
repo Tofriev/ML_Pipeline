@@ -1,117 +1,66 @@
-import json
-import numpy as np
-from sklearn.model_selection import StratifiedKFold, ParameterGrid, train_test_split
-from sklearn.metrics import accuracy_score, roc_auc_score, recall_score, precision_score
+from sklearn.model_selection import StratifiedKFold, cross_val_score, GridSearchCV
+from sklearn.metrics import accuracy_score, roc_auc_score, recall_score, precision_score, make_scorer
 from sklearn.linear_model import LogisticRegression
 from interpret.glassbox import ExplainableBoostingClassifier
 from xgboost import XGBClassifier
+from imblearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
-from sklearn.base import clone
-from sklearn.exceptions import NotFittedError
+import numpy as np
 
 class Trainer:
     def __init__(self, params, dataset):
         self.params = params
-        self.X_train, self.y_train = dataset.get_prepared_data()[0], dataset.get_prepared_data()[2]
-        self.X_test, self.y_test = dataset.get_prepared_data()[1], dataset.get_prepared_data()[3]
+        self.dataset = dataset
 
         model_dict = {
             "LogReg": LogisticRegression(),
             "EBM": ExplainableBoostingClassifier(),
             "XGB": XGBClassifier()
         }
-        self.models = {model_name: model_dict[model_name] for model_name in params["models"] if model_name in model_dict}
+        self.models = {model_name: model_dict[model_name] for model_name in params['models'] if model_name in model_dict}
         self.grid_params = self.params["hpo"]
         self.cv_folds = params["cv_folds"]
         self.results = []
         self.hpo_results = []
 
-    def prepare_hpo(self, parameters):
-        if "class_weight" in parameters:
-            parameters["class_weight"] = [
-                None if i == "None" else i for i in parameters["class_weight"]
-            ]
-        elif "max_depth" in parameters:
-            parameters["max_depth"] = [
-                None if i == -1 else i for i in parameters["max_depth"]
-            ]
-        return parameters
+    def prepare_hpo(self, parameters, step_name):
+        processed_params = {}
+        for key, value in parameters.items():
+            new_key = f"{step_name}__{key}"
+            if key == "class_weight":
+                processed_params[new_key] = [None if i == "None" else i for i in value]
+            elif key == "max_depth":
+                processed_params[new_key] = [None if i == -1 else i for i in value]
+        return processed_params
 
-    def custom_cv(self, X, y, model, cv_folds, smote_params, under_params):
-        cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
-        scores = []
-
-        for train_idx, val_idx in cv.split(X, y):
-            X_train_fold, X_val_fold = X.iloc[train_idx], X.iloc[val_idx]
-            y_train_fold, y_val_fold = y.iloc[train_idx], y.iloc[val_idx]
-
-            smote = SMOTE(sampling_strategy=smote_params['sampling_strategy'], random_state=smote_params['random_state'])
-            under = RandomUnderSampler(sampling_strategy=under_params['sampling_strategy'], random_state=under_params['random_state'])
-
-            X_resampled, y_resampled = smote.fit_resample(X_train_fold, y_train_fold)
-            X_resampled, y_resampled = under.fit_resample(X_resampled, y_resampled)
-
-            model.fit(X_resampled, y_resampled)
-
-            y_val_pred = model.predict(X_val_fold)
-            roc_auc = roc_auc_score(y_val_fold, y_val_pred)
-            scores.append(roc_auc)
-
-        return np.mean(scores), np.std(scores)
-
-    def train_model(self, model_name, model, X_train, y_train):
+    def train_model(self, model_name, model):
         if model_name in self.grid_params:
             print(f"Training {model_name}...")
-            processed_hpo_grid = self.prepare_hpo(self.grid_params[model_name])
-            best_model = None
-            best_score = -np.inf
-            best_params = None
-            mean_test_score, std_test_score = None, None
+            cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
 
-            for params in ParameterGrid(processed_hpo_grid):
-                try:
-                    model.set_params(**params)
-                    mean_score, std_score = self.custom_cv(X_train, y_train, model, self.cv_folds, 
-                                                          smote_params={'sampling_strategy': 0.1, 'random_state': 42},
-                                                          under_params={'sampling_strategy': 0.5, 'random_state': 42})
+            pipeline = Pipeline([
+                ('smote', SMOTE(sampling_strategy=0.1, random_state=42)),
+                ('under', RandomUnderSampler(sampling_strategy=0.5, random_state=42)),
+                ('classifier', model)
+            ])
 
-                    if mean_score > best_score:
-                        best_score = mean_score
-                        best_model = clone(model)
-                        best_params = params
-                        mean_test_score, std_test_score = mean_score, std_score
-                except (ValueError, NotFittedError) as e:
-                    print(f"Skip {params}, error: {e}")
-                    continue  
-                except Exception as e:
-                    print(f"unexpected error: {e}")
-                    continue
 
-            if best_model is None:
-                raise ValueError(f"no valid params for {model_name}")
+            grid_search = GridSearchCV(pipeline, self.grid_params[model_name], cv=cv, scoring="roc_auc", n_jobs=-1)
+            grid_search.fit(self.dataset.X_train, self.dataset.y_train)
 
-            best_model.fit(X_train, y_train)
+            cv_results = cross_val_score(grid_search.best_estimator_, self.dataset.X_train, self.dataset.y_train, cv=cv, scoring="roc_auc")
+            auroc_std = cv_results.std()
 
             self.hpo_results.append({
                 "model": model_name,
-                "best_params": best_params,
-                "best_score": best_score
+                "best_params": grid_search.best_params_,
+                "best_score": grid_search.best_score_,
             })
-
-            cv_metrics = {
-                "roc_auc_mean": mean_test_score,
-                "roc_auc_std": std_test_score
-            }
-
-        return best_model, cv_metrics
+            return grid_search.best_estimator_, auroc_std
 
     def evaluate_model(self, model, X_test, y_test):
-        try:
-            predictions = model.predict(X_test)
-        except NotFittedError:
-            raise ValueError(f"model {model} not fitted")
-
+        predictions = model.predict(X_test)
         accuracy = accuracy_score(y_test, predictions)
         roc_auc = roc_auc_score(y_test, predictions)
         recall = recall_score(y_test, predictions)
@@ -120,23 +69,17 @@ class Trainer:
 
     def train(self):
         for model_name, model in self.models.items():
-            try:
-                trained_model, cv_metrics = self.train_model(model_name, model, self.X_train, self.y_train)
-                accuracy, roc_auc, recall, precision = self.evaluate_model(trained_model, self.X_test, self.y_test)
+            trained_model, auroc_std = self.train_model(model_name, model)
+            if trained_model:
+                accuracy, roc_auc, recall, precision = self.evaluate_model(trained_model, self.dataset.X_test, self.dataset.y_test)
                 self.results.append({
                     "model": model_name,
                     "accuracy": accuracy,
                     "roc_auc": roc_auc,
                     "recall": recall,
                     "precision": precision,
-                    "cv_metrics": cv_metrics
+                    "auroc_std": auroc_std
                 })
-            except ValueError as e:
-                print(f"Error training {model_name}: {e}")
-                continue
-            except Exception as e:
-                print(f"An unexpected error occurred during training of {model_name}: {e}")
-                continue
 
     def get_results(self):
         return self.results, self.hpo_results

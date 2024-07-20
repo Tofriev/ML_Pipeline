@@ -32,7 +32,7 @@ parameters = {
         "sampling": "smote"
         }, 
     "Trainer": {
-        "models": ["LogReg", "EBM", "XGB"],
+        "models": ["LogReg", "EBM", "XGB"], 
         "hpo": hpo,
         "cv_folds": 5,
     }

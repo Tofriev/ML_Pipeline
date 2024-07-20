@@ -87,7 +87,7 @@ class Dataset():
         self.encode()   
         self.impute()
         self.scale()
-       # self.sampling()   do this in the cv process to avoid data leakage
+        #self.sampling()  
         self.data_prepared = True
         print(self.X_train.head())
 
