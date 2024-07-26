@@ -22,7 +22,7 @@ class Pipeline:
         self.trainer.train()
         self.results, self.results_hpo, self.feature_importances = self.trainer.get_results()
         self.trainer.plot_feature_importances()
-        self.trainer.plot_ebm_feature_contributions()
+        #self.trainer.plot_ebm_feature_contributions()
         print(self.results)
         print(self.results_hpo)
     

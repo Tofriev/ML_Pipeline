@@ -28,22 +28,13 @@ class Dataset():
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X, y, train_size=self.params["train_size"], random_state=self.random_state, stratify=y)
     
     def drop(self):
-        for column in self.data.columns:
-            pass
-            #print(column, self.data[column].isnull().sum())
-            #print(len(self.data) * 0.5)
-        
-        missing_threshold = len(self.data) * 0.5
-        columns_to_drop = []
-        
-        for column in self.data.columns:
-            if self.data[column].isnull().sum() > missing_threshold:
-                columns_to_drop.append(column)
-        self.data.drop(columns_to_drop, axis=1, inplace=True)
-        #print(columns_to_drop)
-        self.data.dropna(subset=["gender"], inplace=True)
-        self.data.dropna(subset=["Eth"], inplace=True)
-        self.params["numerical_features"] = [feature for feature in self.params["numerical_features"] if feature not in columns_to_drop]
+        self.data.drop(columns=self.data.columns[self.data.isnull().mean() > 0.5], inplace=True)
+    
+        self.data = self.data.dropna(thresh=self.data.shape[1] * 0.5)
+    
+        self.data.dropna(subset=["gender", "Eth"], inplace=True)
+    
+        self.params["numerical_features"] = [feature for feature in self.params["numerical_features"] if feature in self.data.columns]
 
     def encode(self):
         self.X_train["gender"] = self.X_train["gender"].map({"F": 1, "M": 0}).astype(float)
