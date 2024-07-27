@@ -1,9 +1,9 @@
-#%%
+#%%              
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-csv_file_path = "../data/mimic4_total_new.csv"
+csv_file_path = "../data/mimic4_finalfinalfinal.csv"
 
 numerical_vars = [
             "Age", "Weight", "Height", "Temp", "RR", "HR", "GLU", "MBP", "Ph", "GCST", "PaO2", 
@@ -14,6 +14,8 @@ categorical_vars = ["Eth", "gender"]
 target_var = "mortality"
 
 df = pd.read_csv(csv_file_path)
+
+df = df.dropna(thresh=df.shape[1]*0.5)
 
 # Histograms
 for var in numerical_vars:

@@ -40,7 +40,7 @@ parameters = {
 }
 
 # load data
-with open("../data/mimic4_total_new.csv") as file: 
+with open("../data/mimic4_finalfinalfinal.csv") as file: 
     data = pd.read_csv(file)
 
 pipe = Pipeline(parameters, data)

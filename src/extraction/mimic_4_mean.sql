@@ -92,8 +92,24 @@ height_final AS (
     FROM height_before
     WHERE rn = 1 AND stay_id NOT IN (SELECT stay_id FROM height_after)
 ), 
-temperature AS (
-  SELECT
+ t_f AS (
+SELECT
+        ce.stay_id,
+        (AVG(VALUENUM)-32)/1.8 as temperature_mean
+    FROM
+        chartevents ce
+    INNER JOIN icustays icu ON ce.stay_id = icu.stay_id
+    WHERE
+        ce.charttime BETWEEN icu.intime AND datetime(icu.intime, '+24 hours') AND
+        ce.valuenum IS NOT NULL AND
+        ce.itemid IN (223761) 
+        AND ce.valuenum <= 113
+        AND ce.valuenum >= 68
+    GROUP BY
+        ce.stay_id
+)
+, t_c AS (
+SELECT
         ce.stay_id,
         AVG(VALUENUM) as temperature_mean
     FROM
@@ -107,7 +123,8 @@ temperature AS (
         AND ce.valuenum >= 20
     GROUP BY
         ce.stay_id
-), 
+),
+ 
 resprate AS (
   SELECT
         ce.stay_id,
@@ -332,7 +349,7 @@ gcs_verbal AS (
     GROUP BY
             ce.stay_id
 )
-, potassium_serum AS ( -- Kalium 
+, potassium_serum AS (
     SELECT 
         ce.stay_id,
         AVG(VALUENUM) AS potassium_serum_mean
@@ -348,7 +365,7 @@ gcs_verbal AS (
     GROUP BY
             ce.stay_id
 )
-, sodium_serum AS (-- Natrium 
+, sodium_serum AS (
     SELECT 
         ce.stay_id,
         AVG(VALUENUM) AS sodium_serum_mean
@@ -440,12 +457,11 @@ gcs_verbal AS (
         ce.valuenum IS NOT NULL AND
         ce.itemid IN (220228)
         AND ce.valuenum <= 20
-        AND ce.valuenum >= 1
-        
+        AND ce.valuenum >= 10
     GROUP BY
             ce.stay_id
 )
-, inr AS ( --ZINR/Quick
+, inr AS ( --ZINR
     SELECT 
         ce.stay_id,
         AVG(VALUENUM) AS inr_mean
@@ -475,7 +491,6 @@ WHERE
     AND ce.valuenum <= 2000
     AND ce.valuenum >= 2
 GROUP BY
-
         ce.stay_id
 )
 , asat AS (
@@ -579,24 +594,23 @@ GROUP BY
 
 
 SELECT
+    ic.stay_id,
+    ic.subject_id,
     m.Mortality_icu AS mortality,
     CAST((strftime('%s', ic.outtime) - strftime('%s', ic.intime)) / 3600.0 AS INTEGER) AS LOS, -- LOS in hours
     CASE 
         WHEN adm.race IN ('ASIAN', 'ASIAN - KOREAN', 'ASIAN - CHINESE', 'ASIAN - SOUTH EAST ASIAN', 'ASIAN - ASIAN INDIAN') THEN 1
         WHEN adm.race IN ('BLACK/AFRICAN AMERICAN', 'BLACK/CARIBBEAN ISLAND', 'BLACK/AFRICAN','BLACK/CAPE VERDEAN', 'CARIBBEAN ISLAND') THEN 2
-        WHEN adm.race IN ('HISPANIC', 'HISPANIC/LATINO - CENTRAL AMERICAN', 'HISPANIC/LATINO - COLUMBIAN', 'HISPANIC/LATINO - HONDURAN', 'HISPANIC/LATINO - CUBAN',
-         'HISPANIC/LATINO - MEXICAN', 'HISPANIC OR LATINO', 'HISPANIC/LATINO - DOMINICAN', 'HISPANIC/LATINO - SALVADORAN', 'HISPANIC/LATINO - PUERTO RICAN', 'HISPANIC/LATINO - GUATEMALAN',
-          'SOUTH AMERICAN') THEN 3
+        WHEN adm.race IN ('HISPANIC', 'HISPANIC/LATINO - CENTRAL AMERICAN', 'HISPANIC/LATINO - COLUMBIAN', 'HISPANIC/LATINO - HONDURAN', 'HISPANIC/LATINO - CUBAN', 'HISPANIC/LATINO - MEXICAN', 'HISPANIC OR LATINO', 'HISPANIC/LATINO - DOMINICAN', 'HISPANIC/LATINO - SALVADORAN', 'HISPANIC/LATINO - PUERTO RICAN', 'HISPANIC/LATINO - GUATEMALAN', 'SOUTH AMERICAN') THEN 3
         WHEN adm.race IN ('WHITE', 'WHITE - BRAZILIAN', 'WHITE - RUSSIAN', 'WHITE - OTHER EUROPEAN', 'MIDDLE EASTERN', 'PORTUGUESE') THEN 4
-        WHEN adm.race IN ('AMERICAN INDIAN', 'AMERICAN INDIAN/ALASKA NATIVE', 'NATIVE HAWAIIAN','NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER', 'MULTIPLE RACE/ETHNICITY',
-         'UNABLE TO OBTAIN', 'PATIENT DECLINED TO ANSWER', 'UNKNOWN', 'OTHER', '') THEN 0
+        WHEN adm.race IN ('AMERICAN INDIAN', 'AMERICAN INDIAN/ALASKA NATIVE', 'NATIVE HAWAIIAN','NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER', 'MULTIPLE RACE/ETHNICITY', 'UNABLE TO OBTAIN', 'PATIENT DECLINED TO ANSWER', 'UNKNOWN', 'OTHER', '') THEN 0
     END AS Eth,
     p.gender,
     p.anchor_age AS Age,
     wf.weight_mean AS "Weight",
     hf.height_mean AS "Height",
     (wf.weight_mean / ((hf.height_mean / 100) * (hf.height_mean / 100))) AS "Bmi", -- convert height from cm in m for bmi calculation
-    t.temperature_mean AS Temp,
+    CASE WHEN t_f.temperature_mean IS NULL THEN t_c.temperature_mean ELSE t_f.temperature_mean END AS "Temp" ,
     r.rr_mean AS "RR",
     hr.hr_mean AS "HR",
     g.glc_mean AS "GLU"
@@ -604,7 +618,7 @@ SELECT
     , dbp.dbp_mean AS "DBP"
     , mbp.mbp_mean AS "MBP"
     , ph.ph_mean AS "Ph"
-    , gcs_e.mean_eyes + gcs_v.mean_verbal + gcs_m.mean_motor AS "GCST"
+    , gcs_e.mean_eyes + gcs_v.mean_verbal + gcs_m.mean_motor AS "GCS"
     , pao2.pao2_mean AS "PaO2"
     , creatinine_serum.creatinine_serum_mean AS "Kreatinin"
     , fio2_normal.fio2_normal_mean AS "FiO2"
@@ -620,31 +634,23 @@ SELECT
     , asat.asat_mean AS "ASAT"
     , paco2.paco2_mean AS "PaCO2"
     , albumin.albumin_mean AS "Albumin"
-    , anion_gap.anion_gap_mean AS "AnionGAP"
+    , anion_gap.anion_gap_mean AS "Anion_GAP"
     , lactate.lactate_mean AS "Lactate"
     , urea_nitrogen_blood.urea_nitrogen_blood_mean AS "Harnstoff"
-    
-
 FROM
     icustays ic
 INNER JOIN admissions adm ON ic.hadm_id = adm.hadm_id
 INNER JOIN patients p ON ic.subject_id = p.subject_id
 LEFT JOIN weight_final AS wf ON ic.stay_id = wf.stay_id
 LEFT JOIN height_final AS hf ON ic.stay_id = hf.stay_id
-LEFT JOIN temperature AS t ON 1=1
-    AND ic.stay_id = t.stay_id
-LEFT JOIN resprate AS r ON 1=1
-    AND ic.stay_id = r.stay_id
-LEFT JOIN heartrate AS hr ON 1=1
-    AND ic.stay_id = hr.stay_id
-LEFT JOIN glucose AS g ON 1=1
-    AND ic.stay_id = g.stay_id
-LEFT JOIN systolic_bp AS sbp ON 1=1
-    AND ic.stay_id = sbp.stay_id
-LEFT JOIN diastolic_bp AS dbp ON 1=1
-    AND ic.stay_id = dbp.stay_id 
-LEFT JOIN mean_bp AS mbp ON 1=1
-    AND ic.stay_id = mbp.stay_id  
+LEFT JOIN t_f AS t_f ON ic.stay_id = t_f.stay_id
+LEFT JOIN t_c AS t_c ON ic.stay_id = t_c.stay_id
+LEFT JOIN resprate AS r ON ic.stay_id = r.stay_id
+LEFT JOIN heartrate AS hr ON ic.stay_id = hr.stay_id
+LEFT JOIN glucose AS g ON ic.stay_id = g.stay_id
+LEFT JOIN systolic_bp AS sbp ON ic.stay_id = sbp.stay_id
+LEFT JOIN diastolic_bp AS dbp ON ic.stay_id = dbp.stay_id 
+LEFT JOIN mean_bp AS mbp ON ic.stay_id = mbp.stay_id  
 LEFT JOIN mort AS m ON ic.stay_id = m.stay_id  
 LEFT JOIN ph AS ph ON ic.stay_id = ph.stay_id  
 LEFT JOIN gcs_eyes AS gcs_e ON ic.stay_id = gcs_e.stay_id 
