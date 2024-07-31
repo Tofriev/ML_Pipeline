@@ -64,30 +64,16 @@ class Trainer:
                 "best_score": grid_search.best_score_,
             })
 
-            if model_name == "XGB":
-                self.shap_importance(grid_search.best_estimator_['classifier'])
-            elif model_name == "EBM":
-                self.ebm_importance(grid_search.best_estimator_['classifier'])
-            elif model_name == "LogReg":
-                self.logreg_importance(grid_search.best_estimator_['classifier'])
+            self.shap_importance(grid_search.best_estimator_['classifier'], model_name)
             
 
             return grid_search.best_estimator_, auroc_std, model_memory
 
-    def shap_importance(self, model):
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(self.dataset.X_train)
-        shap_importance = np.abs(shap_values).mean(axis=0)
-        self.feature_importances["XGB"] = shap_importance
-
-    def ebm_importance(self, model):
-        self.ebm_global_explanation = model.explain_global()
-        ebm_importance = self.ebm_global_explanation.data()['scores']
-        self.feature_importances["EBM"] = ebm_importance
-
-    def logreg_importance(self, model):
-        logreg_importance = np.abs(model.coef_).flatten()
-        self.feature_importances["LogReg"] = logreg_importance
+    def shap_importance(self, model, model_name):
+        explainer = shap.Explainer(model, self.dataset.X_train)
+        shap_values = explainer(self.dataset.X_train)
+        shap_importance = np.abs(shap_values.values).mean(axis=0)
+        self.feature_importances[model_name] = shap_importance
 
     def evaluate_model(self, model, X_test, y_test):
         predictions = model.predict(X_test)
